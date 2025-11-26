@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Joyst Auth API</title>
+</head>
+<body>
+    <h1>Joyst Authentication API</h1>
+    <p>This is your API endpoint for client authentication</p>
+    
+    <script>
+        // Ye client-side API hai jo tumhare cheat app use karega
+        async function joystAuth(action, data) {
+            const baseURL = 'https://your-username.github.io/joyst-auth/';
+            
+            if(action === 'login') {
+                return await loginUser(data.username, data.password);
+            } else if(action === 'register') {
+                return await registerUser(data.username, data.password, data.license);
+            }
+        }
+
+        async function loginUser(username, password) {
+            // Local storage se data get karo (tum GitHub pe JSON file use karoge)
+            const users = JSON.parse(localStorage.getItem('joyst_users') || '[]');
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if(user) {
+                if(user.status === 'banned') {
+                    return { success: false, message: 'Account banned' };
+                }
+                if(user.expiry < Date.now()) {
+                    return { success: false, message: 'Subscription expired' };
+                }
+                return { 
+                    success: true, 
+                    message: 'Login successful',
+                    user: {
+                        username: user.username,
+                        subscription: user.subscription,
+                        expiry: user.expiry
+                    }
+                };
+            }
+            return { success: false, message: 'Invalid credentials' };
+        }
+
+        async function registerUser(username, password, licenseKey) {
+            const licenses = JSON.parse(localStorage.getItem('joyst_licenses') || '[]');
+            const license = licenses.find(l => l.key === licenseKey && !l.used);
+            
+            if(!license) {
+                return { success: false, message: 'Invalid license key' };
+            }
+
+            const userData = {
+                username: username,
+                password: password,
+                subscription: license.subscription,
+                expiry: Date.now() + (license.duration * 24 * 60 * 60 * 1000),
+                hwid: null,
+                status: 'active',
+                created: Date.now()
+            };
+
+            // Update license as used
+            license.used = true;
+            license.usedBy = username;
+            license.usedAt = Date.now();
+            
+            let users = JSON.parse(localStorage.getItem('joyst_users') || '[]');
+            users.push(userData);
+            
+            localStorage.setItem('joyst_users', JSON.stringify(users));
+            localStorage.setItem('joyst_licenses', JSON.stringify(licenses));
+            
+            return { success: true, message: 'Registration successful' };
+        }
+    </script>
+</body>
+</html>
